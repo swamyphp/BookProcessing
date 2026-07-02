@@ -1,0 +1,10 @@
+.folder { margin-bottom:6px }
+.folder > .fw-bold { color:#0d6efd }
+.file { padding:4px 0 }
+
+/* Dark mode */
+body.dark { background:#121212; color:#ddd }
+body.dark .card { background:#1e1e1e; color:#ddd }
+body.dark .btn-outline-secondary { color:#ddd; border-color:#444 }
+body.dark .app-context-menu { background:#222; color:#ddd }
+
