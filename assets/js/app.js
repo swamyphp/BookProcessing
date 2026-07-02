@@ -23,7 +23,8 @@ $(function(){
     $.get('explorer.php',{id:extractionId}, function(resp){
       const j = typeof resp === 'string' ? JSON.parse(resp) : resp;
       $('#treeArea').empty();
-      buildTree($('#treeArea'), j.tree, '');
+      const children = j.children || [];
+      children.forEach(function(ch){ buildTree($('#treeArea'), ch); });
       validatePackage();
     });
   }
@@ -32,15 +33,27 @@ $(function(){
     if(node.type==='folder'){
       const div = $('<div>').addClass('folder');
       const hdr = $('<div>').addClass('fw-bold d-flex align-items-center').html('<span class="me-2">📁</span>'+node.name);
-      hdr.on('click', function(){ $(this).next().toggle(); });
+      hdr.data('path', node.path);
+      hdr.on('click', function(){
+        const inner = $(this).next();
+        if(inner.children().length===0){
+          // lazy load
+          $.get('explorer.php',{id:extractionId, path: node.path.replace(/^\//,'')}, function(res){ const jr = typeof res === 'string' ? JSON.parse(res) : res; const kids = jr.children || []; kids.forEach(function(ch){ buildTree(inner, ch); }); });
+        }
+        inner.toggle();
+      });
+      // drag/drop handlers for uploads
+      hdr.on('dragover', function(e){ e.preventDefault(); $(this).addClass('border border-primary'); });
+      hdr.on('dragleave', function(e){ $(this).removeClass('border border-primary'); });
+      hdr.on('drop', function(e){ e.preventDefault(); $(this).removeClass('border border-primary'); const dt = e.originalEvent.dataTransfer; if(!dt) return; const files = dt.files; if(files.length){ for(let i=0;i<files.length;i++){ const file = files[i]; const fd = new FormData(); fd.append('file', file); const target = node.path + '/' + file.name; fd.append('target', target); const xhr = new XMLHttpRequest(); xhr.open('POST','ajax/upload.php'); xhr.onload = function(){ const j=JSON.parse(xhr.responseText||'{}'); if(j.success) loadTree(); else alert('Upload failed'); }; xhr.send(fd); } } });
       div.append(hdr);
       const inner = $('<div>').css({'padding-left':'12px'}).toggle();
-      node.children.forEach(function(ch){ buildTree(inner, ch, path + '/' + node.name); });
       div.append(inner);
       container.append(div);
     } else {
       const file = $('<div>').addClass('file d-flex align-items-center').css('cursor','pointer');
       file.html('<span class="me-2">📄</span>'+node.name);
+      file.data('path', node.path);
       file.on('click', function(){ showDetails(node); });
       // right-click menu
       file.on('contextmenu', function(e){ e.preventDefault(); showContextMenu(e.pageX,e.pageY,node); });
@@ -53,8 +66,15 @@ $(function(){
     const menu = $(`<div class="app-context-menu card" style="position:absolute;left:${x}px;top:${y}px;z-index:9999;padding:6px;"></div>`);
     const rename = $('<div class="p-1">Rename</div>').on('click', function(){ $('.app-context-menu').remove(); showDetails(node); $('#renameBtn').click(); });
     const replace = $('<div class="p-1">Replace</div>').on('click', function(){ $('.app-context-menu').remove(); showDetails(node); $('#replaceBtn').click(); });
-    const del = $('<div class="p-1 text-danger">Delete</div>').on('click', function(){ $('.app-context-menu').remove(); if(confirm('Delete file?')) $.post('ajax/delete.php',{path:node.path}, function(r){ const j=JSON.parse(r); if(j.success) loadTree(); else alert(j.error); }); });
-    menu.append(rename,replace,del);
+    const del = $('<div class="p-1 text-danger">Delete</div>').on('click', function(){ $('.app-context-menu').remove(); if(confirm('Delete?')) $.post('ajax/delete.php',{path:node.path}, function(r){ const j=JSON.parse(r); if(j.success) loadTree(); else alert(j.error); }); });
+    const createFolder = $('<div class="p-1">Create Folder</div>').on('click', function(){ $('.app-context-menu').remove(); const name = prompt('Folder name'); if(!name) return; const target = (node.type==='folder'? node.path : node.path.replace(/\/g,'/').replace(/\/g,'/').replace(/\/g,'/'));
+      // determine parent folder
+      const parent = node.type==='folder' ? node.path : node.path.replace(/\/g,'/').replace(/\/g,'/').replace(/\/g,'/').replace(/\/g,'/');
+      const full = (node.type==='folder'? node.path : node.path.substring(0, node.path.lastIndexOf('/')));
+      $.post('ajax/create_folder.php',{path: full + '/' + name}, function(r){ const j=JSON.parse(r); if(j.success) loadTree(); else alert(j.error); });
+    });
+    const uploadFile = $('<div class="p-1">Upload File</div>').on('click', function(){ $('.app-context-menu').remove(); const inp = $('<input type="file">'); inp.on('change', function(){ const f = this.files[0]; const fd = new FormData(); fd.append('file', f); const target = (node.type==='folder' ? node.path : node.path.substring(0, node.path.lastIndexOf('/')) ) + '/' + f.name; fd.append('target', target); const xhr = new XMLHttpRequest(); xhr.open('POST','ajax/upload.php'); xhr.onload=function(){ const j=JSON.parse(xhr.responseText||'{}'); if(j.success) loadTree(); else alert('Upload failed'); }; xhr.send(fd); }); inp.trigger('click'); });
+    menu.append(rename,replace,createFolder,uploadFile,del);
     $('body').append(menu);
     $(document).one('click', function(){ menu.remove(); });
   }
@@ -90,7 +110,7 @@ $(function(){
   }
 
   function validatePackage(){
-    $.get('file_actions.php',{action:'validate', id:extractionId}, function(r){ const j=JSON.parse(r); let html=''; j.results.forEach(function(it){ html += `<div>${it.ok?'<span class="text-success">✔</span>':'<span class="text-danger">❌</span>'} ${it.name}</div>`; });
+    $.get('ajax/validation.php',{id:extractionId}, function(r){ const j=JSON.parse(r); let html=''; j.results.forEach(function(it){ let badge=''; if(it.status==='found') badge='<span class="text-success">✔</span>'; else if(it.status==='missing') badge='<span class="text-danger">❌</span>'; else badge='<span class="text-warning">⚠</span>'; html += `<div>${badge} ${it.name} <small class="text-muted">${it.status}</small></div>`; });
       $('#validationArea').html(html);
       $('#createBookBtn').prop('disabled', !j.ok);
   });

@@ -4,7 +4,7 @@ $id = $_POST['id'] ?? null; $short = $_POST['short'] ?? null;
 if(!$id || !$short){ echo json_encode(['success'=>false,'error'=>'missing params']); exit; }
 if(!preg_match('/^[A-Za-z0-9_-]+$/',$short)){ echo json_encode(['success'=>false,'error'=>'invalid short name']); exit; }
 
-$src = __DIR__ . '/temp/' . basename($id) . '/extracted'; if(!is_dir($src)){ echo json_encode(['success'=>false,'error'=>'missing extracted']); exit; }
+$src = __DIR__ . '/Temp/' . basename($id) . '/extracted'; if(!is_dir($src)){ echo json_encode(['success'=>false,'error'=>'missing extracted']); exit; }
 
 $booksRoot = __DIR__ . '/books'; if(!is_dir($booksRoot)) mkdir($booksRoot,0777,true);
 $dest = $booksRoot . '/' . $short; if(is_dir($dest)){ echo json_encode(['success'=>false,'error'=>'short name exists']); exit; }
