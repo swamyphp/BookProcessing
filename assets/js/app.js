@@ -1,5 +1,31 @@
 $(function(){
   let extractionId = null;
+  let dragCounter = 0;
+  // overlay element for main zip drag/drop
+  const overlay = $('<div id="zipDropOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;align-items:center;justify-content:center;">' +
+    '<div class="card p-4 text-center"><h4>Drop ZIP to upload</h4><p class="mb-0">Release to upload package</p></div></div>');
+  $('body').append(overlay);
+
+  function showOverlay(){ overlay.css('display','flex'); }
+  function hideOverlay(){ overlay.hide(); dragCounter = 0; }
+
+  function uploadZipFile(file){
+    const fd = new FormData(); fd.append('zipfile', file);
+    const xhr = new XMLHttpRequest();
+    const progress = $('<div class="progress mt-2"><div class="progress-bar" role="progressbar" style="width:0%">0%</div></div>');
+    $('#uploadZipForm').after(progress);
+    xhr.upload.addEventListener('progress', function(ev){ if(ev.lengthComputable){ const pct = Math.round(ev.loaded/ev.total*100); progress.find('.progress-bar').css('width',pct+'%').text(pct+'%'); } });
+    xhr.addEventListener('load', function(){ const resp = JSON.parse(xhr.responseText || '{}'); if(resp.success){ extractionId = resp.extraction_id; validateZip(); } else if(resp.duplicate){ alert('Duplicate package detected. Extraction ID: '+resp.extraction_id); } else alert(resp.error||'Upload failed'); progress.remove(); });
+    xhr.open('POST','upload.php'); xhr.send(fd);
+  }
+
+  // global drag/drop handlers for main upload
+  $(document).on('dragenter', function(e){ dragCounter++; showOverlay(); });
+  $(document).on('dragover', function(e){ e.preventDefault(); e.originalEvent.dataTransfer.dropEffect = 'copy'; });
+  $(document).on('dragleave', function(e){ dragCounter--; if(dragCounter<=0) hideOverlay(); });
+  $(document).on('drop', function(e){ e.preventDefault(); hideOverlay(); const dt = e.originalEvent.dataTransfer; if(!dt) return; const files = dt.files; if(files && files.length){ // pick first zip
+    for(let i=0;i<files.length;i++){ const f=files[i]; if(f.name.toLowerCase().endsWith('.zip')){ uploadZipFile(f); break; } }
+  } });
   // dark mode
   if(localStorage.getItem('bp_dark')==='1') $('body').addClass('dark');
   const dmToggle = $('<button class="btn btn-sm btn-outline-secondary ms-2">Toggle Dark</button>');
@@ -14,7 +40,9 @@ $(function(){
     const progress = $('<div class="progress mt-2"><div class="progress-bar" role="progressbar" style="width:0%">0%</div></div>');
     $('#uploadZipForm').after(progress);
     xhr.upload.addEventListener('progress', function(ev){ if(ev.lengthComputable){ const pct = Math.round(ev.loaded/ev.total*100); progress.find('.progress-bar').css('width',pct+'%').text(pct+'%'); } });
-    xhr.addEventListener('load', function(){ const resp = JSON.parse(xhr.responseText || '{}'); if(resp.success){ extractionId = resp.extraction_id; loadTree(); $('#validationArea').html('Package extracted.'); } else alert(resp.error||'Upload failed'); progress.remove(); });
+    xhr.addEventListener('load', function(){ const resp = JSON.parse(xhr.responseText || '{}'); if(resp.success){ extractionId = resp.extraction_id; // validate package contents from zip
+      validateZip();
+    } else if(resp.duplicate){ alert('Duplicate package detected. Extraction ID: '+resp.extraction_id); } else alert(resp.error||'Upload failed'); progress.remove(); });
     xhr.open('POST','upload.php'); xhr.send(fd);
   });
 
@@ -27,6 +55,17 @@ $(function(){
       children.forEach(function(ch){ buildTree($('#treeArea'), ch); });
       validatePackage();
     });
+  }
+
+  function validateZip(){
+    if(!extractionId) return;
+    $('#validationArea').html('Scanning package...');
+    $.get('ajax/validate_zip.php',{id:extractionId}, function(resp){ const j = typeof resp === 'string' ? JSON.parse(resp) : resp; let html=''; j.results.forEach(function(it){ let badge=''; if(it.status==='found') badge='<span class="text-success">✔</span>'; else if(it.status==='missing') badge='<span class="text-danger">❌</span>'; else badge='<span class="text-warning">⚠</span>'; html += `<div>${badge} ${it.name} <small class="text-muted">${it.status}</small></div>`; });
+      html += '<div class="mt-2"><button id="extractPackageBtn" class="btn btn-primary btn-sm">Extract package</button></div>';
+      $('#validationArea').html(html);
+      $('#extractPackageBtn').on('click', function(){ $(this).prop('disabled',true).text('Extracting...'); $.post('extract.php',{id:extractionId}, function(res){ const jr = typeof res === 'string' ? JSON.parse(res) : res; if(jr.success){ loadTree(); } else { alert(jr.error || 'Extract failed'); $('#extractPackageBtn').prop('disabled',false).text('Extract package'); } }); });
+      // extraction required before enabling Create Book; post-extract validation will enable it
+    }).fail(function(){ $('#validationArea').html('Validation failed'); });
   }
 
   function buildTree(container, node, path){

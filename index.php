@@ -21,6 +21,10 @@ require_login();
 				<button class="btn btn-primary btn-sm" type="submit">Upload ZIP</button>
 			</form>
 			<a href="dashboard.php" class="btn btn-outline-secondary btn-sm me-2">Dashboard</a>
+			<?php if(current_user_role() === 'admin'): ?>
+			  <a href="smtp_settings.php" class="btn btn-outline-secondary btn-sm me-2">SMTP Settings</a>
+			<?php endif; ?>
+			<a href="forgot_password.php" class="btn btn-outline-warning btn-sm me-2">Forgot Password</a>
 			<a href="logout.php" class="btn btn-outline-danger btn-sm">Logout</a>
 		</div>
 	</div>

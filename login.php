@@ -5,9 +5,22 @@ $error='';
 if($_SERVER['REQUEST_METHOD']==='POST'){
   $u = $_POST['username'] ?? ''; $p = $_POST['password'] ?? '';
   $row = $userSvc->findByUsername($u);
-  if($row && $userSvc->verifyPassword($row,$p)){
-    $_SESSION['user_id']=$row['id']; $_SESSION['username']=$row['username']; $_SESSION['role']=$row['role']; header('Location: index.php'); exit;
-  } else { $error='Invalid credentials'; }
+  if($row && !$row['active']){
+    $error='Account inactive';
+    record_user_log('login_attempt_inactive', ['username'=>$u,'ip'=>$_SERVER['REMOTE_ADDR'] ?? null]);
+  }elseif($row && $userSvc->verifyPassword($row,$p)){
+    $_SESSION['user_id']=$row['id']; $_SESSION['username']=$row['username']; $_SESSION['role']=$row['role'];
+    $_SESSION['last_activity']=time();
+    // update last_login
+    $stmt = $pdo->prepare('UPDATE users SET last_login=NOW() WHERE id=?'); $stmt->execute([$row['id']]);
+    // record activity and user_logs
+    record_activity('login', ['username'=>$row['username'],'ip'=>$_SERVER['REMOTE_ADDR'] ?? null]);
+    record_user_log('login_success', ['username'=>$row['username']]);
+    header('Location: index.php'); exit;
+  } else {
+    $error='Invalid credentials';
+    record_user_log('login_failed', ['username'=>$u,'ip'=>$_SERVER['REMOTE_ADDR'] ?? null]);
+  }
 }
 ?><!doctype html>
 <html><head><meta charset="utf-8"><title>Login</title>
