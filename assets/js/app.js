@@ -51,6 +51,9 @@ $(function(){
     $.get('explorer.php',{id:extractionId}, function(resp){
       const j = typeof resp === 'string' ? JSON.parse(resp) : resp;
       $('#treeArea').empty();
+      $('#breadcrumb').empty();
+      const bc = j.breadcrumb || [];
+      bc.forEach(function(b, idx){ const a = $("<a href='#' class='me-1 breadcrumb-item' data-path='"+b.path+"'>"+b.name+"</a>"); a.on('click', function(e){ e.preventDefault(); $('#treeArea').empty(); $.get('explorer.php',{id:extractionId, path: b.path}, function(res){ const jr = typeof res === 'string' ? JSON.parse(res) : res; jr.children.forEach(function(ch){ buildTree($('#treeArea'), ch); }); }); }); $('#breadcrumb').append(a); });
       const children = j.children || [];
       children.forEach(function(ch){ buildTree($('#treeArea'), ch); });
       validatePackage();
@@ -77,7 +80,7 @@ $(function(){
         const inner = $(this).next();
         if(inner.children().length===0){
           // lazy load
-          $.get('explorer.php',{id:extractionId, path: node.path.replace(/^\//,'')}, function(res){ const jr = typeof res === 'string' ? JSON.parse(res) : res; const kids = jr.children || []; kids.forEach(function(ch){ buildTree(inner, ch); }); });
+          $.get('explorer.php',{id:extractionId, path: node.path}, function(res){ const jr = typeof res === 'string' ? JSON.parse(res) : res; const kids = jr.children || []; kids.forEach(function(ch){ buildTree(inner, ch); }); });
         }
         inner.toggle();
       });
@@ -91,7 +94,11 @@ $(function(){
       container.append(div);
     } else {
       const file = $('<div>').addClass('file d-flex align-items-center').css('cursor','pointer');
-      file.html('<span class="me-2">📄</span>'+node.name);
+      // pick icon based on extension
+      const ext = node.name.split('.').pop().toLowerCase();
+      const icons = { 'docx':'📝','doc':'📝','jpg':'🖼️','jpeg':'🖼️','png':'🖼️','xml':'📄','pdf':'📄' };
+      const ico = icons[ext] || '📄';
+      file.html(`<span class="me-2">${ico}</span>${node.name}`);
       file.data('path', node.path);
       file.on('click', function(){ showDetails(node); });
       // right-click menu
@@ -106,11 +113,7 @@ $(function(){
     const rename = $('<div class="p-1">Rename</div>').on('click', function(){ $('.app-context-menu').remove(); showDetails(node); $('#renameBtn').click(); });
     const replace = $('<div class="p-1">Replace</div>').on('click', function(){ $('.app-context-menu').remove(); showDetails(node); $('#replaceBtn').click(); });
     const del = $('<div class="p-1 text-danger">Delete</div>').on('click', function(){ $('.app-context-menu').remove(); if(confirm('Delete?')) $.post('ajax/delete.php',{path:node.path}, function(r){ const j=JSON.parse(r); if(j.success) loadTree(); else alert(j.error); }); });
-    const createFolder = $('<div class="p-1">Create Folder</div>').on('click', function(){ $('.app-context-menu').remove(); const name = prompt('Folder name'); if(!name) return; const target = (node.type==='folder'? node.path : node.path.replace(/\/g,'/').replace(/\/g,'/').replace(/\/g,'/'));
-      // determine parent folder
-      const parent = node.type==='folder' ? node.path : node.path.replace(/\/g,'/').replace(/\/g,'/').replace(/\/g,'/').replace(/\/g,'/');
-      const full = (node.type==='folder'? node.path : node.path.substring(0, node.path.lastIndexOf('/')));
-      $.post('ajax/create_folder.php',{path: full + '/' + name}, function(r){ const j=JSON.parse(r); if(j.success) loadTree(); else alert(j.error); });
+    const createFolder = $('<div class="p-1">Create Folder</div>').on('click', function(){ $('.app-context-menu').remove(); const name = prompt('Folder name'); if(!name) return; const full = node.type==='folder' ? node.path : node.path.substring(0, node.path.lastIndexOf('/')); $.post('ajax/create_folder.php',{id:extractionId, path: full + '/' + name}, function(r){ const j=JSON.parse(r); if(j.success) loadTree(); else alert(j.error); });
     });
     const uploadFile = $('<div class="p-1">Upload File</div>').on('click', function(){ $('.app-context-menu').remove(); const inp = $('<input type="file">'); inp.on('change', function(){ const f = this.files[0]; const fd = new FormData(); fd.append('file', f); const target = (node.type==='folder' ? node.path : node.path.substring(0, node.path.lastIndexOf('/')) ) + '/' + f.name; fd.append('target', target); const xhr = new XMLHttpRequest(); xhr.open('POST','ajax/upload.php'); xhr.onload=function(){ const j=JSON.parse(xhr.responseText||'{}'); if(j.success) loadTree(); else alert('Upload failed'); }; xhr.send(fd); }); inp.trigger('click'); });
     menu.append(rename,replace,createFolder,uploadFile,del);

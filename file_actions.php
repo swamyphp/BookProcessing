@@ -9,7 +9,7 @@ function relPath($full){ return str_replace('\\','/', $full); }
 
 if($action=='rename'){
   $path = $_POST['path']; $name = $_POST['name']; $new = $_POST['newname'];
-  $full = __DIR__ . '/..' . $path; $newfull = dirname($full).'/'.basename($new);
+  $full = __DIR__ . '/Temp/' . basename($id) . '/extracted/' . ltrim($path,'/'); $newfull = dirname($full).'/'.basename($new);
   if(!file_exists($full)){ echo json_encode(['error'=>'not found']); exit; }
   rename($full,$newfull);
   echo json_encode(['success'=>true]); exit;
@@ -17,14 +17,14 @@ if($action=='rename'){
 
 if($action=='replace'){
   if(empty($_FILES['file'])){ echo json_encode(['error'=>'no file']); exit; }
-  $path = $_POST['path']; $full = __DIR__ . '/..' . $path;
+  $path = $_POST['path']; $full = __DIR__ . '/Temp/' . basename($id) . '/extracted/' . ltrim($path,'/');
   if(!file_exists($full)){ echo json_encode(['error'=>'target missing']); exit; }
   move_uploaded_file($_FILES['file']['tmp_name'],$full);
   echo json_encode(['success'=>true]); exit;
 }
 
 if($action=='delete'){
-  $path = $_POST['path']; $full = __DIR__ . '/..' . $path;
+  $path = $_POST['path']; $full = __DIR__ . '/Temp/' . basename($id) . '/extracted/' . ltrim($path,'/');
   if(file_exists($full)) { unlink($full); echo json_encode(['success'=>true]); }
   else echo json_encode(['error'=>'missing']);
   exit;

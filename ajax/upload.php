@@ -2,7 +2,10 @@
 // small upload helper for replacing files
 if(empty($_FILES['file'])){ echo json_encode(['success'=>false,'error'=>'no file']); exit; }
 $target = $_POST['target'] ?? null; if(!$target){ echo json_encode(['success'=>false,'error'=>'no target']); exit; }
-$full = __DIR__ . '/..' . $target;
+$id = $_POST['id'] ?? null; if(!$id){ echo json_encode(['success'=>false,'error'=>'missing id']); exit; }
+$base = __DIR__ . '/..' . '/Temp/' . basename($id) . '/extracted';
+$target = $_POST['target'] ?? null; if(!$target){ echo json_encode(['success'=>false,'error'=>'no target']); exit; }
+$full = $base . '/' . ltrim($target,'/');
 $dir = dirname($full);
 if(!is_dir($dir)) mkdir($dir,0777,true);
 if(move_uploaded_file($_FILES['file']['tmp_name'],$full)){
