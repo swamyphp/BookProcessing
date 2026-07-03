@@ -32,7 +32,10 @@ require_login();
 	<div class="row">
 		<div class="col-md-4">
 			<div class="card">
-				<div class="card-header">Folder Tree</div>
+				<div class="card-header d-flex justify-content-between align-items-center">
+					<span>Folder Tree</span>
+					<div id="breadcrumb" class="small text-muted"></div>
+				</div>
 				<div class="card-body" id="treeArea" style="height:600px;overflow:auto;"></div>
 			</div>
 		</div>
@@ -57,6 +60,19 @@ require_login();
 			</div>
 		</div>
 	</div>
+</div>
+
+<div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="previewModalLabel">File Preview</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="previewContent" style="min-height:400px;">
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>

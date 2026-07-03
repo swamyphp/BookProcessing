@@ -53,7 +53,18 @@ $(function(){
       $('#treeArea').empty();
       $('#breadcrumb').empty();
       const bc = j.breadcrumb || [];
-      bc.forEach(function(b, idx){ const a = $("<a href='#' class='me-1 breadcrumb-item' data-path='"+b.path+"'>"+b.name+"</a>"); a.on('click', function(e){ e.preventDefault(); $('#treeArea').empty(); $.get('explorer.php',{id:extractionId, path: b.path}, function(res){ const jr = typeof res === 'string' ? JSON.parse(res) : res; jr.children.forEach(function(ch){ buildTree($('#treeArea'), ch); }); }); }); $('#breadcrumb').append(a); });
+      bc.forEach(function(b, idx){
+        const a = $("<a href='#' class='me-1 breadcrumb-item' data-path='"+b.path+"'>"+b.name+"</a>");
+        a.on('click', function(e){
+          e.preventDefault();
+          $('#treeArea').empty();
+          $.get('explorer.php',{id:extractionId, path: b.path}, function(res){
+            const jr = typeof res === 'string' ? JSON.parse(res) : res;
+            jr.children.forEach(function(ch){ buildTree($('#treeArea'), ch); });
+          });
+        });
+        $('#breadcrumb').append(a);
+      });
       const children = j.children || [];
       children.forEach(function(ch){ buildTree($('#treeArea'), ch); });
       validatePackage();
@@ -87,7 +98,7 @@ $(function(){
       // drag/drop handlers for uploads
       hdr.on('dragover', function(e){ e.preventDefault(); $(this).addClass('border border-primary'); });
       hdr.on('dragleave', function(e){ $(this).removeClass('border border-primary'); });
-      hdr.on('drop', function(e){ e.preventDefault(); $(this).removeClass('border border-primary'); const dt = e.originalEvent.dataTransfer; if(!dt) return; const files = dt.files; if(files.length){ for(let i=0;i<files.length;i++){ const file = files[i]; const fd = new FormData(); fd.append('file', file); const target = node.path + '/' + file.name; fd.append('target', target); const xhr = new XMLHttpRequest(); xhr.open('POST','ajax/upload.php'); xhr.onload = function(){ const j=JSON.parse(xhr.responseText||'{}'); if(j.success) loadTree(); else alert('Upload failed'); }; xhr.send(fd); } } });
+      hdr.on('drop', function(e){ e.preventDefault(); $(this).removeClass('border border-primary'); const dt = e.originalEvent.dataTransfer; if(!dt) return; const files = dt.files; if(files.length){ for(let i=0;i<files.length;i++){ const file = files[i]; const fd = new FormData(); fd.append('file', file); const target = node.path + '/' + file.name; fd.append('id', extractionId); fd.append('target', target); const xhr = new XMLHttpRequest(); xhr.open('POST','ajax/upload.php'); xhr.onload = function(){ const j=JSON.parse(xhr.responseText||'{}'); if(j.success) loadTree(); else alert('Upload failed'); }; xhr.send(fd); } } });
       div.append(hdr);
       const inner = $('<div>').css({'padding-left':'12px'}).toggle();
       div.append(inner);
@@ -112,25 +123,33 @@ $(function(){
     const menu = $(`<div class="app-context-menu card" style="position:absolute;left:${x}px;top:${y}px;z-index:9999;padding:6px;"></div>`);
     const rename = $('<div class="p-1">Rename</div>').on('click', function(){ $('.app-context-menu').remove(); showDetails(node); $('#renameBtn').click(); });
     const replace = $('<div class="p-1">Replace</div>').on('click', function(){ $('.app-context-menu').remove(); showDetails(node); $('#replaceBtn').click(); });
-    const del = $('<div class="p-1 text-danger">Delete</div>').on('click', function(){ $('.app-context-menu').remove(); if(confirm('Delete?')) $.post('ajax/delete.php',{path:node.path}, function(r){ const j=JSON.parse(r); if(j.success) loadTree(); else alert(j.error); }); });
-    const createFolder = $('<div class="p-1">Create Folder</div>').on('click', function(){ $('.app-context-menu').remove(); const name = prompt('Folder name'); if(!name) return; const full = node.type==='folder' ? node.path : node.path.substring(0, node.path.lastIndexOf('/')); $.post('ajax/create_folder.php',{id:extractionId, path: full + '/' + name}, function(r){ const j=JSON.parse(r); if(j.success) loadTree(); else alert(j.error); });
+    const downloadFile = $('<div class="p-1">Download</div>').on('click', function(){ $('.app-context-menu').remove(); window.open('ajax/download.php?id='+encodeURIComponent(extractionId)+'&path='+encodeURIComponent(node.path), '_blank'); });
+    const previewFile = $('<div class="p-1">Preview</div>').on('click', function(){ $('.app-context-menu').remove(); previewFileNode(node); });
+    const del = $('<div class="p-1 text-danger">Delete</div>').on('click', function(){ $('.app-context-menu').remove(); if(confirm('Delete?')) $.post('ajax/delete.php',{id:extractionId, path:node.path}, function(r){ const j=JSON.parse(r); if(j.success) loadTree(); else alert(j.error); }); });
+    const createFolder = $('<div class="p-1">Create Folder</div>').on('click', function(){ $('.app-context-menu').remove(); const name = prompt('Folder name'); if(!name) return; const full = node.type==='folder' ? node.path : node.path.substring(0, node.path.lastIndexOf('/')); $.post('ajax/create_folder.php',{id:extractionId, path: (full? full + '/' : '') + name}, function(r){ const j=JSON.parse(r); if(j.success) loadTree(); else alert(j.error); });
     });
-    const uploadFile = $('<div class="p-1">Upload File</div>').on('click', function(){ $('.app-context-menu').remove(); const inp = $('<input type="file">'); inp.on('change', function(){ const f = this.files[0]; const fd = new FormData(); fd.append('file', f); const target = (node.type==='folder' ? node.path : node.path.substring(0, node.path.lastIndexOf('/')) ) + '/' + f.name; fd.append('target', target); const xhr = new XMLHttpRequest(); xhr.open('POST','ajax/upload.php'); xhr.onload=function(){ const j=JSON.parse(xhr.responseText||'{}'); if(j.success) loadTree(); else alert('Upload failed'); }; xhr.send(fd); }); inp.trigger('click'); });
-    menu.append(rename,replace,createFolder,uploadFile,del);
+    const uploadFile = $('<div class="p-1">Upload File</div>').on('click', function(){ $('.app-context-menu').remove(); const inp = $('<input type="file">'); inp.on('change', function(){ const f = this.files[0]; const fd = new FormData(); fd.append('file', f); const target = (node.type==='folder' ? node.path : node.path.substring(0, node.path.lastIndexOf('/')) ) + '/' + f.name; fd.append('id', extractionId); fd.append('target', target); const xhr = new XMLHttpRequest(); xhr.open('POST','ajax/upload.php'); xhr.onload=function(){ const j=JSON.parse(xhr.responseText||'{}'); if(j.success) loadTree(); else alert('Upload failed: '+(j.error||'unknown')); }; xhr.send(fd); }); inp.trigger('click'); });
+    menu.append(rename,replace,downloadFile,previewFile,createFolder,uploadFile,del);
     $('body').append(menu);
     $(document).one('click', function(){ menu.remove(); });
   }
 
   function showDetails(node){
+    const ext = node.name.split('.').pop().toLowerCase();
+    const previewable = ['jpg','jpeg','png','pdf','xml','css','txt'].includes(ext);
     const html = `<p><strong>File:</strong> ${node.name}</p>
       <p><strong>Path:</strong> ${node.path}</p>
-      <div class="btn-group">
+      <div class="btn-group mb-2">
         <button id="renameBtn" class="btn btn-sm btn-outline-secondary">Rename</button>
         <button id="replaceBtn" class="btn btn-sm btn-outline-primary">Replace</button>
+        <button id="downloadBtn" class="btn btn-sm btn-outline-success">Download</button>
+        <button id="previewBtn" class="btn btn-sm btn-outline-info" ${previewable ? '' : 'disabled'}>Preview</button>
         <button id="deleteBtn" class="btn btn-sm btn-outline-danger">Delete</button>
       </div>
       <div id="fileActionArea" class="mt-2"></div>`;
     $('#detailArea').html(html);
+    $('#downloadBtn').on('click', function(){ window.open('ajax/download.php?id='+encodeURIComponent(extractionId)+'&path='+encodeURIComponent(node.path), '_blank'); });
+    $('#previewBtn').on('click', function(){ if(!previewable){ alert('Preview not supported for this file type.'); return; } previewFileNode(node); });
 
     $('#renameBtn').on('click', function(){
       const frm = `<div class="input-group mt-2"><input id="newName" class="form-control" value="${node.name}"><button id="doRename" class="btn btn-primary">Rename</button></div>`;
@@ -149,6 +168,26 @@ $(function(){
     });
 
     $('#deleteBtn').on('click', function(){ if(!confirm('Delete file?')) return; $.post('file_actions.php',{action:'delete', id:node.extraction_id, path:node.path, name:node.name}, function(r){ const j=JSON.parse(r); if(j.success){ loadTree(); $('#fileActionArea').html('Deleted'); } else alert(j.error); }); });
+  }
+
+  function previewFileNode(node){
+    const ext = node.name.split('.').pop().toLowerCase();
+    const url = 'ajax/preview.php?id=' + encodeURIComponent(extractionId) + '&path=' + encodeURIComponent(node.path);
+    const modal = $('#previewModal');
+    const content = $('#previewContent');
+    content.empty();
+    if(['jpg','jpeg','png','tif','tiff'].includes(ext)){
+      content.html(`<img src="${url}" class="img-fluid" alt="${node.name}">`);
+    } else if(ext === 'pdf'){
+      content.html(`<iframe src="${url}" class="w-100" style="height:80vh;border:0"></iframe>`);
+    } else if(['xml','css','txt'].includes(ext)){
+      $.get(url, function(data){ content.html(`<pre style="white-space:pre-wrap; word-wrap:break-word;">${$('<div>').text(data).html()}</pre>`); });
+    } else {
+      content.html('<p>Preview not supported for this file type.</p>');
+    }
+    modal.find('.modal-title').text('Preview: ' + node.name);
+    const bootstrapModal = new bootstrap.Modal(modal[0]);
+    bootstrapModal.show();
   }
 
   function validatePackage(){
